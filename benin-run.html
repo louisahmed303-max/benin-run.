@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#101820">
+<title>Benin Run — Drive the City</title>
+<style>
+:root{--gold:#ffd34e;--red:#d92e2e;--ink:#101820;--panel:rgba(9,16,22,.86);--mint:#68e0ae}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;touch-action:none}
+#game{display:block;width:100vw;height:100dvh;background:#9cc5d5}
+.hud{position:fixed;inset:0;pointer-events:none}
+.top{display:flex;justify-content:space-between;align-items:flex-start;padding:12px;gap:8px}
+.brand,.stats,.mission{background:var(--panel);border:1px solid #ffffff26;border-radius:14px;padding:9px 12px;backdrop-filter:blur(6px);box-shadow:0 4px 18px #0003}
+.brand{font-weight:1000;letter-spacing:.7px;color:var(--gold);font-size:clamp(15px,4vw,22px)}
+.brand small{display:block;font-size:9px;letter-spacing:2px;color:#fff;font-weight:700}
+.stats{display:flex;gap:12px;font-size:12px;font-weight:800}
+.stats span{display:block;color:#b9c5cc;font-size:9px;text-transform:uppercase;letter-spacing:.8px}
+.stats b{font-size:15px;color:#fff}
+.mission{position:absolute;left:12px;top:91px;max-width:220px;font-size:12px;line-height:1.35}
+.mission strong{color:var(--gold);display:block;margin-bottom:3px}
+#toast{position:absolute;top:43%;left:50%;transform:translate(-50%,-50%);background:#101820e8;border:1px solid #ffffff2c;padding:10px 15px;border-radius:12px;font-weight:800;text-align:center;opacity:0;transition:opacity .2s;max-width:85%;font-size:14px}
+.controls{position:absolute;bottom:max(16px,env(safe-area-inset-bottom));left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 18px;pointer-events:auto}
+.pad{display:flex;gap:10px}
+.ctrl{width:58px;height:58px;border-radius:17px;border:1px solid #ffffff55;background:#101820bb;color:white;font-size:24px;font-weight:900;box-shadow:0 4px 0 #0005;display:grid;place-items:center;user-select:none;-webkit-user-select:none}
+.ctrl:active,.ctrl.down{background:var(--gold);color:#101820;transform:translateY(2px)}
+.ctrl.long{width:70px;height:64px;font-size:12px;letter-spacing:.5px}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:22px;background:linear-gradient(#10182066,#101820c9);z-index:5}
+.card{width:min(420px,100%);background:#101820f2;border:1px solid #ffffff32;border-radius:24px;padding:25px 22px;text-align:center;box-shadow:0 20px 70px #0008}
+.logo{font-size:clamp(42px,12vw,62px);line-height:1;font-weight:1000;font-style:italic;color:var(--gold);text-shadow:3px 4px 0 #9c2424;letter-spacing:-2px}
+.subtitle{color:#c8d1d7;font-size:14px;margin:10px 0 20px}
+.busmark{font-size:56px;margin:12px 0}
+.primary{border:0;border-radius:14px;background:var(--gold);color:#171c21;font-weight:1000;font-size:16px;padding:15px 24px;width:100%;cursor:pointer}
+.tip{font-size:11px;color:#aebbc3;line-height:1.5;margin-top:14px}
+.hidden{display:none!important}
+@media(min-width:700px){.controls{padding:0 32px 20px}.ctrl{width:64px;height:64px}.mission{top:105px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="hud">
+  <div class="top">
+    <div class="brand">BENIN RUN<small>DRIVE THE CITY</small></div>
+    <div class="stats">
+      <div><span>Fares ₦</span><b id="money">0</b></div>
+      <div><span>Passengers</span><b id="passengers">0</b></div>
+      <div><span>Distance</span><b id="distance">0 m</b></div>
+    </div>
+  </div>
+  <div class="mission"><strong>YOUR ROUTE</strong><div id="missionText">Pick up passengers and avoid traffic.</div></div>
+  <div id="toast"></div>
+  <div class="controls">
+    <div class="pad">
+      <button class="ctrl" data-control="left" aria-label="Steer left">◀</button>
+      <button class="ctrl" data-control="right" aria-label="Steer right">▶</button>
+    </div>
+    <div class="pad">
+      <button class="ctrl long" data-control="brake">BRAKE</button>
+      <button class="ctrl long" data-control="gas">GO ▲</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="startScreen">
+  <div class="card">
+    <div class="logo">BENIN RUN</div>
+    <div class="busmark">🚌</div>
+    <div class="subtitle">The streets are calling. Pick up passengers, collect fares and make your run through Benin City.</div>
+    <button class="primary" id="startBtn">START YOUR ENGINE</button>
+    <div class="tip">PHONE: use the on-screen arrows and GO button.<br>COMPUTER: use ← → to steer, ↑ to accelerate, ↓ to brake.<br>Prototype 0.1 · More city features coming soon.</div>
+  </div>
+</div>
+<div class="overlay hidden" id="endScreen">
+  <div class="card">
+    <div class="logo" style="font-size:43px">RUN OVER!</div>
+    <div class="busmark">🚧</div>
+    <div class="subtitle" id="endSummary">Your run has ended.</div>
+    <button class="primary" id="againBtn">DRIVE AGAIN</button>
+    <div class="tip">Watch the road and keep your bus between the lane edges.</div>
+  </div>
+</div>
+<script>
+(()=>{
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=innerWidth,H=innerHeight,dpr=1;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize);resize();
+const keys={left:false,right:false,gas:false,brake:false};
+let running=false,over=false,last=0,time=0,roadPos=0,score=0,money=0,passengers=0,distance=0,speed=0,playerX=0,shake=0;
+let traffic=[],stops=[],spawnTraffic=0,spawnStop=3,toastTimer=0;
+const highKey='beninRunHighScore';
+function rand(a,b){return a+Math.random()*(b-a)}
+function showToast(msg){$('toast').textContent=msg;$('toast').style.opacity=1;toastTimer=1.7}
+function reset(){
+ running=true;over=false;time=0;roadPos=0;score=0;money=0;passengers=0;distance=0;speed=0;playerX=0;shake=0;traffic=[];stops=[];spawnTraffic=1.2;spawnStop=4;
+ $('money').textContent='0';$('passengers').textContent='0';$('distance').textContent='0 m';$('missionText').textContent='Find a bus stop and collect fares.';$('startScreen').classList.add('hidden');$('endScreen').classList.add('hidden');
+}
+function roadAt(y){
+ const horizon=H*.31,depth=Math.max(0,Math.min(1,(y-horizon)/(H-horizon)));
+ const half=W*(.16+.38*depth),cx=W*.5+Math.sin(roadPos*.0012+depth*2)*W*.035*depth;
+ return {cx,half,depth};
+}
+function poly(points,color){ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(points[0][0],points[0][1]);for(let i=1;i<points.length;i++)ctx.lineTo(points[i][0],points[i][1]);ctx.closePath();ctx.fill()}
+function drawTree(x,y,s){
+ ctx.fillStyle='#64472d';ctx.fillRect(x-s*.09,y-s*.05,s*.18,s*.62);
+ ctx.fillStyle='#276b43';for(let i=0;i<5;i++){ctx.beginPath();ctx.ellipse(x+Math.cos(i*1.25)*s*.22,y-s*.2+Math.sin(i*1.25)*s*.12,s*.32,s*.14,i*.5,0,Math.PI*2);ctx.fill()}
+ ctx.fillStyle='#39834d';ctx.beginPath();ctx.arc(x,y-s*.22,s*.23,0,Math.PI*2);ctx.fill()
+}
+function drawScenery(){
+ const horizon=H*.31;
+ const sky=ctx.createLinearGradient(0,0,0,horizon+20);sky.addColorStop(0,'#8cc7df');sky.addColorStop(1,'#f4d7a0');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+ // distant skyline
+ ctx.fillStyle='#bd9d75';ctx.fillRect(0,horizon-7,W,13);
+ for(let i=0;i<18;i++){let x=i*W/15-(roadPos*.05% (W/15)),bh=rand(12,37);ctx.fillStyle=['#bd9b76','#a97d5e','#d2b58a'][i%3];ctx.fillRect(x,horizon-bh,Math.max(10,W/22),bh)}
+ ctx.fillStyle='#b7a17b';ctx.fillRect(0,horizon,W,H-horizon);
+ // roadside blocks and greenery
+ for(let i=0;i<12;i++){
+  const yy=horizon+((i*73+roadPos*.8)%(H-horizon));
+  const dep=(yy-horizon)/(H-horizon),sz=8+dep*38;
+  const r=roadAt(yy);
+  const side=i%2===0?-1:1,xx=r.cx+side*(r.half+25+dep*W*.13);
+  if(i%3===0){drawTree(xx,yy,sz)}
+  else{
+   ctx.fillStyle=['#d4a46d','#d7c29b','#b96f4d','#9fba9a'][i%4];ctx.fillRect(xx-sz*.65,yy-sz*.85,sz*1.3,sz*.85);
+   ctx.fillStyle='#5d5147';ctx.fillRect(xx-sz*.25,yy-sz*.53,sz*.18,sz*.2);ctx.fillRect(xx+sz*.1,yy-sz*.53,sz*.18,sz*.2);
+   ctx.fillStyle='#8a5d3a';ctx.fillRect(xx-sz*.72,yy-sz*.95,sz*1.44,sz*.14);
+  }
+ }
+}
+function drawRoad(){
+ const horizon=H*.31;
+ // road shoulder
+ poly([[W*.5-W*.23,horizon],[W*.5+W*.23,horizon],[W+30,H],[-30,H]],'#8b8b76');
+ const top=roadAt(horizon),bottom=roadAt(H);
+ poly([[top.cx-top.half,horizon],[top.cx+top.half,horizon],[bottom.cx+bottom.half,H],[bottom.cx-bottom.half,H]],'#3c4448');
+ // striped road edge
+ const stripes=22;
+ for(let i=0;i<stripes;i++){
+  let y1=horizon+((i*58+roadPos*1.1)%(H-horizon)),y2=Math.min(H,y1+Math.max(3,(y1-horizon)*.12+4));
+  const a=roadAt(y1),b=roadAt(y2),col=i%2?'#f1d34c':'#ecece3';
+  poly([[a.cx-a.half,y1],[a.cx-a.half+4+(y1-horizon)*.04,y1],[b.cx-b.half+4+(y2-horizon)*.04,y2],[b.cx-b.half,y2]],col);
+  poly([[a.cx+a.half-4-(y1-horizon)*.04,y1],[a.cx+a.half,y1],[b.cx+b.half,y2],[b.cx+b.half-4-(y2-horizon)*.04,y2]],col);
+ }
+ // lane dashes
+ for(let lane=1;lane<=2;lane++){
+  for(let i=0;i<12;i++){
+   let y=horizon+((i*95+roadPos*1.5)%(H-horizon)),y2=Math.min(H,y+Math.max(5,(y-horizon)*.09));
+   let a=roadAt(y),b=roadAt(y2),x1=a.cx-a.half+2*a.half*lane/3,x2=b.cx-b.half+2*b.half*lane/3;
+   let ww=1+(y-horizon)*.018;
+   poly([[x1-ww,y],[x1+ww,y],[x2+ww*1.5,y2],[x2-ww*1.5,y2]],'#eee9cf');
+  }
+ }
+}
+function roadObjectX(lane,y){let r=roadAt(y);return r.cx+(lane-.5)*r.half*1.28}
+function drawBus(x,y,w,h,player=false,color='#f3c833'){
+ ctx.save();ctx.translate(x,y);
+ // shadow
+ ctx.fillStyle='#0005';ctx.beginPath();ctx.ellipse(0,h*.45,w*.7,h*.18,0,0,Math.PI*2);ctx.fill();
+ // wheels
+ ctx.fillStyle='#171b1d';ctx.fillRect(-w*.55,-h*.18,w*.18,h*.47);ctx.fillRect(w*.37,-h*.18,w*.18,h*.47);
+ // unmistakable Benin City yellow-and-red livery (not all-yellow)
+ poly([[-w*.48,-h*.42],[w*.43,-h*.42],[w*.52,h*.25],[w*.43,h*.44],[-w*.43,h*.44],[-w*.52,h*.25]],'#f3c833');
+ // bold red roof band and broad red body stripe
+ ctx.fillStyle='#d92e2e';ctx.fillRect(-w*.48,-h*.42,w*.91,h*.13);
+ ctx.fillStyle='#d92e2e';ctx.fillRect(-w*.49,h*.015,w*.98,h*.145);
+ // windows sit clearly above the red stripe
+ ctx.fillStyle='#222a2d';ctx.fillRect(-w*.39,-h*.285,w*.78,h*.255);
+ ctx.fillStyle='#9bd5e3';ctx.fillRect(-w*.34,-h*.26,w*.25,h*.19);ctx.fillRect(-w*.04,-h*.26,w*.25,h*.19);
+ ctx.fillStyle='#25292b';ctx.fillRect(-w*.38,h*.17,w*.76,h*.07);
+ ctx.fillStyle='#f6e6a2';ctx.fillRect(-w*.38,h*.255,w*.76,h*.055);
+ ctx.fillStyle='#fff6c9';ctx.fillRect(-w*.36,h*.32,w*.14,h*.07);ctx.fillRect(w*.22,h*.32,w*.14,h*.07);
+ ctx.fillStyle='#191f22';ctx.font=`bold ${Math.max(7,w*.14)}px sans-serif`;ctx.textAlign='center';ctx.fillText('BENIN',0,h*.12);
+ if(player){ctx.fillStyle='#d92e2e';ctx.fillRect(-w*.5,-h*.42,w,.08*h);ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(6,w*.1)}px sans-serif`;ctx.fillText('RUN',0,-h*.45)}
+ ctx.restore();
+}
+function drawOkada(x,y,w,h){
+ ctx.save();ctx.translate(x,y);ctx.strokeStyle='#252a2d';ctx.lineWidth=Math.max(2,w*.09);
+ ctx.beginPath();ctx.arc(-w*.28,h*.23,w*.2,0,Math.PI*2);ctx.arc(w*.28,h*.23,w*.2,0,Math.PI*2);ctx.stroke();
+ ctx.strokeStyle='#f1bc2e';ctx.lineWidth=Math.max(2,w*.1);ctx.beginPath();ctx.moveTo(-w*.28,h*.2);ctx.lineTo(0,-h*.05);ctx.lineTo(w*.24,h*.2);ctx.lineTo(-w*.28,h*.2);ctx.stroke();
+ ctx.fillStyle='#5b3826';ctx.beginPath();ctx.arc(0,-h*.3,w*.14,0,Math.PI*2);ctx.fill();ctx.fillStyle='#d92e2e';ctx.fillRect(-w*.1,-h*.18,w*.2,h*.26);ctx.restore();
+}
+function render(){
+ drawScenery();drawRoad();
+ // bus stops and traffic use perspective-scaled objects
+ for(const s of stops){let y=H*.31+s.p*(H*.69);if(y<H*.31||y>H+60)continue;let r=roadAt(y),x=r.cx+r.half*.82;
+  ctx.fillStyle='#f6d04e';ctx.fillRect(x-13*s.p,y-24*s.p,26*s.p,20*s.p);ctx.fillStyle='#252b2e';ctx.font=`bold ${Math.max(5,8*s.p)}px sans-serif`;ctx.textAlign='center';ctx.fillText('STOP',x,y-11*s.p);
+  ctx.fillStyle='#e8d0ad';ctx.beginPath();ctx.arc(x-19*s.p,y,4*s.p,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(x+19*s.p,y,4*s.p,0,Math.PI*2);ctx.fill();
+ }
+ for(const t of traffic){let y=H*.31+t.p*(H*.69),r=roadAt(y),x=r.cx+(t.lane-.5)*r.half*1.25,w=(8+30*t.p),h=w*1.5;if(t.kind==='okada')drawOkada(x,y,w,h);else drawBus(x,y,w,h,false,t.color)}
+ // player bus
+ let py=H*.79,pr=roadAt(py),px=pr.cx+playerX*pr.half*.7,pw=Math.max(47,Math.min(78,W*.15)),ph=pw*1.35;
+ if(shake>0){px+=rand(-shake,shake);py+=rand(-shake,shake)}
+ drawBus(px,py,pw,ph,true);
+ // speed indicator
+ ctx.fillStyle='#101820b8';ctx.beginPath();ctx.roundRect(W-80,H*.2,64,48,10);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 11px sans-serif';ctx.fillText('SPEED',W-48,H*.2+15);ctx.font='bold 19px sans-serif';ctx.fillText(Math.round(speed*80),W-48,H*.2+37);
+}
+function endGame(reason){running=false;over=true;let high=Math.max(Number(localStorage.getItem(highKey)||0),score);localStorage.setItem(highKey,high);$('endSummary').textContent=`${reason} You earned ₦${money}, picked up ${passengers} passenger${passengers===1?'':'s'}, and travelled ${Math.round(distance)} m. Best score: ${high}.`;$('endScreen').classList.remove('hidden')}
+function update(dt){
+ if(!running)return;
+ time+=dt;
+ const target=keys.gas?1:keys.brake?.24:.58;
+ speed+=(target-speed)*Math.min(1,dt*1.8);
+ if(keys.left)playerX-=dt*1.2*(.55+speed);
+ if(keys.right)playerX+=dt*1.2*(.55+speed);
+ playerX=Math.max(-.92,Math.min(.92,playerX));
+ roadPos+=speed*dt*120;distance+=speed*dt*13;score=Math.floor(distance)+money;
+ spawnTraffic-=dt;if(spawnTraffic<=0){traffic.push({p:0,lane:Math.floor(rand(0,3)),kind:Math.random()<.35?'okada':'bus',color:Math.random()<.5?'#e2bd32':'#d6d7d3'});spawnTraffic=rand(.7,1.35)/(0.6+speed*.8)}
+ spawnStop-=dt;if(spawnStop<=0){stops.push({p:0});spawnStop=rand(5,8)}
+ traffic.forEach(t=>t.p+=dt*(.12+speed*.25));stops.forEach(s=>s.p+=dt*(.13+speed*.22));
+ traffic=traffic.filter(t=>t.p<1.15);stops=stops.filter(s=>s.p<1.1);
+ // collision check when objects reach the player's depth
+ for(const t of traffic){if(t.p>.68&&t.p<.83){let laneX=(t.lane-1);if(Math.abs(laneX-playerX)<.42){shake=7;endGame('You collided with traffic.');return}}}
+ for(let i=stops.length-1;i>=0;i--){const s=stops[i];if(s.p>.69&&s.p<.83&&Math.abs(playerX-.52)<.38){money+=250;passengers++;$('money').textContent=money.toLocaleString();$('passengers').textContent=passengers;$('missionText').textContent='Great! ₦250 fare collected. Keep driving.';showToast('PASSENGER ON BOARD  +₦250');stops.splice(i,1)}}
+ shake=Math.max(0,shake-dt*20);if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').style.opacity=0}
+ $('distance').textContent=Math.floor(distance)+' m';
+}
+function frame(now){let dt=Math.min(.04,(now-last)/1000||0);last=now;update(dt);render();requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+$('startBtn').addEventListener('click',reset);$('againBtn').addEventListener('click',reset);
+document.querySelectorAll('[data-control]').forEach(btn=>{
+ const k=btn.dataset.control;
+ const down=e=>{e.preventDefault();keys[k]=true;btn.classList.add('down')};
+ const up=e=>{e.preventDefault();keys[k]=false;btn.classList.remove('down')};
+ btn.addEventListener('pointerdown',down);btn.addEventListener('pointerup',up);btn.addEventListener('pointercancel',up);btn.addEventListener('pointerleave',up);
+});
+addEventListener('keydown',e=>{let k={'ArrowLeft':'left','a':'left','ArrowRight':'right','d':'right','ArrowUp':'gas','w':'gas','ArrowDown':'brake','s':'brake'}[e.key];if(k){keys[k]=true;e.preventDefault()}});
+addEventListener('keyup',e=>{let k={'ArrowLeft':'left','a':'left','ArrowRight':'right','d':'right','ArrowUp':'gas','w':'gas','ArrowDown':'brake','s':'brake'}[e.key];if(k)keys[k]=false});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){Object.keys(keys).forEach(k=>keys[k]=false)}});
+})();
+</script>
+</body>
+</html>
